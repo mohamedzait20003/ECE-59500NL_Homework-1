@@ -1,0 +1,48 @@
+# ============================================
+# LLM / Fine-Tuning (GPT-2 Medium)
+# ============================================
+transformers               # Hugging Face: load, fine-tune, and tokenize GPT-2 Medium
+torch                      # PyTorch: deep learning backend
+datasets                   # Hugging Face: load and preprocess training data
+accelerate                 # Efficient training
+scipy                      # Required dependency for trainer utilities
+scikit-learn               # Evaluation metrics during training
+wandb                      # Experiment tracking & logging
+
+# ============================================
+# Speech-to-Text + Text-to-Speech (Azure)
+# ============================================
+azure-cognitiveservices-speech  # Azure Speech SDK: handles BOTH STT and TTS
+
+# ============================================
+# Text-to-Speech (Local Fallback)
+# ============================================
+pyttsx3                    # Offline TTS fallback (no API key needed)
+
+# ============================================
+# Voice Cloning (Optional - for Biden/Trump voices)
+# ============================================
+TTS                        # Coqui TTS: voice cloning & custom voice synthesis
+
+# ============================================
+# Data Collection & Preprocessing
+# ============================================
+requests                   # Download transcripts, speeches, PDFs
+beautifulsoup4             # Scrape web pages for speech text
+trafilatura                # Extract clean text from web articles
+PyPDF2                     # Extract text from PDF books
+lxml                       # HTML/XML parser (beautifulsoup backend)
+
+# ============================================
+# Text Processing / NLP Utilities
+# ============================================
+nltk                       # Tokenization, sentence splitting, text cleanup
+regex                      # Advanced regex for cleaning training data
+ftfy                       # Fix unicode/encoding issues in scraped text
+
+# ============================================
+# General Utilities
+# ============================================
+numpy                      # Numerical computing
+tqdm                       # Progress bars
+python-dotenv              # Load API keys from .env file

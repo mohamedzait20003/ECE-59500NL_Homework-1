@@ -1,0 +1,91 @@
+# ============================================
+# Model Weights (do NOT submit per assignment rules)
+# ============================================
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.ckpt
+models/
+checkpoints/
+fine_tuned_biden/
+fine_tuned_trump/
+output/
+
+# ============================================
+# Training Data & Datasets (do NOT commit large files)
+# ============================================
+data/raw/
+data/processed/
+*.csv
+*.jsonl
+*.parquet
+*.txt.bak
+
+# ============================================
+# API Keys & Secrets
+# ============================================
+.env
+.env.*
+secrets.json
+azure_keys.json
+
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+env/
+.venv/
+.ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ============================================
+# Jupyter Notebooks
+# ============================================
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ============================================
+# Experiment Tracking (wandb)
+# ============================================
+wandb/
+runs/
+logs/
+*.log
+
+# ============================================
+# Hugging Face Cache
+# ============================================
+.cache/
+~/.cache/huggingface/
+
+# ============================================
+# Audio Files (generated speech output)
+# ============================================
+*.wav
+*.mp3
+*.ogg
+*.flac
+audio_output/
+
+# ============================================
+# OS & Editor
+# ============================================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
