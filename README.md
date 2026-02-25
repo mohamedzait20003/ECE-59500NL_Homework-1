@@ -30,10 +30,12 @@ Azure TTS (Text-to-Speech)
 Speaker Output
 ```
 
-During the debate:
+During the debate (two-laptop mode):
 - **Laptop 1** runs the Biden chatbot
 - **Laptop 2** runs the Trump chatbot
 - Each listens to the other's speech output via microphone and responds accordingly
+
+Alternatively, both chatbots can run on a single laptop (see **Run the Debate** below).
 
 ---
 
@@ -90,8 +92,9 @@ python scripts/collect_data.py
 ```
 
 Data sources used:
-- **Trump:** Rev.com debate transcripts, Art of the Deal (PDF), Think Like a Champion (PDF), Trump Twitter Archive
-- **Biden:** White House speeches, Rev.com debate transcripts, Promises to Keep (archive.org), Promise Me Dad (archive.org)
+- **Trump:** Art of the Deal (PDF), Think Like a Champion (PDF), 15 Rev.com speech transcripts, 2020 presidential debate transcripts
+- **Biden:** Inaugural Address 2021, State of the Union 2022–2024 (UCSB), 15 Rev.com speech transcripts, 2020 presidential debate transcripts
+- **Debates:** UCSB American Presidency Project (primary), Rev.com (fallback); transcripts split by speaker
 
 ### 4. Preprocess the Data
 
@@ -161,24 +164,31 @@ python scripts/debate.py --mode single --first trump
 
 ## Data Sources
 
-### Trump
-- Rev.com: https://www.rev.com/blog/transcripts?s=trump
-- The Art of the Deal (PDF): https://ia601405.us.archive.org/19/items/TrumpTheArtOfTheDeal
-- Think Like a Champion (PDF): https://www.reboxu.com/uploads/8/6/0/3/86031326/think_like_a_champion.pdf
-- Trump Twitter Archive: https://www.thetrumparchive.com/
-- Kaggle Trump Tweets: https://www.kaggle.com/datasets/headsortails/trump-twitter-archive
+### Trump (19 files)
+| File | Source |
+|---|---|
+| `art_of_the_deal.txt` | PDF — https://ia601405.us.archive.org/19/items/TrumpTheArtOfTheDeal |
+| `think_like_a_champion.txt` | PDF — https://www.reboxu.com/uploads/8/6/0/3/86031326/think_like_a_champion.pdf |
+| `trump_debate_2020_1.txt` | UCSB Presidency Project (Rev.com fallback) — 1st 2020 Presidential Debate |
+| `trump_debate_2020_2.txt` | UCSB Presidency Project (Rev.com fallback) — 2nd 2020 Presidential Debate |
+| `trump_rev_speech_00` – `trump_rev_speech_14` | Rev.com speech transcripts — https://www.rev.com/blog/transcripts?s=trump+speech |
 
-### Biden
-- White House Speeches: https://www.whitehouse.gov/briefing-room/speeches-remarks/
-- Rev.com: https://www.rev.com/blog/transcripts?s=biden
-- Promises to Keep: https://archive.org/details/promisestokeepon00joeb
-- Promise Me, Dad: https://archive.org/details/promisemedadyear0000bide_j8m5
-- Biden Bibliography: https://en.wikipedia.org/wiki/Bibliography_of_Joe_Biden
+> **Optional:** Place `trump_tweets.csv` (from [Kaggle Trump Twitter Archive](https://www.kaggle.com/datasets/headsortails/trump-twitter-archive)) in `data/raw/trump/` to include tweet data.
 
-### Debate Transcripts (Both)
-- 2024 Biden vs Trump Debate: https://www.rev.com/blog/transcripts/biden-trump-debate-transcript
-- 2020 Debate 1: https://www.rev.com/blog/transcripts/donald-trump-joe-biden-1st-presidential-debate-transcript-2020
-- 2020 Debate 2: https://www.rev.com/blog/transcripts/donald-trump-joe-biden-final-presidential-debate-transcript-2020
+### Biden (21 files)
+| File | Source |
+|---|---|
+| `biden_inaugural_2021.txt` | UCSB Presidency Project — Inaugural Address (Jan 20, 2021) |
+| `biden_sotu_2022.txt` | UCSB Presidency Project — State of the Union 2022 |
+| `biden_sotu_2023.txt` | UCSB Presidency Project — State of the Union 2023 |
+| `biden_sotu_2024.txt` | UCSB Presidency Project — State of the Union 2024 |
+| `biden_debate_2020_1.txt` | UCSB Presidency Project (Rev.com fallback) — 1st 2020 Presidential Debate |
+| `biden_debate_2020_2.txt` | UCSB Presidency Project (Rev.com fallback) — 2nd 2020 Presidential Debate |
+| `biden_rev_speech_00` – `biden_rev_speech_14` | Rev.com speech transcripts — https://www.rev.com/blog/transcripts?s=biden+speech |
+
+### Primary Scraping Sources
+- UCSB American Presidency Project: https://www.presidency.ucsb.edu/
+- Rev.com Transcripts: https://www.rev.com/blog/transcripts/
 
 ---
 
