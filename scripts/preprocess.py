@@ -86,6 +86,32 @@ def load_raw_files(persona_dir: str) -> str:
     return "\n\n".join(all_text)
 
 
+def deduplicate_chunks(chunks: list, threshold: float = 0.9) -> list:
+    """Remove near-duplicate chunks using simple Jaccard similarity."""
+    unique = []
+
+    for chunk in chunks:
+        chunk_words = set(chunk.lower().split())
+        is_dup = False
+
+        for existing in unique:
+            existing_words = set(existing.lower().split())
+            if not chunk_words or not existing_words:
+                continue
+            intersection = chunk_words & existing_words
+            union = chunk_words | existing_words
+            similarity = len(intersection) / len(union)
+
+            if similarity >= threshold:
+                is_dup = True
+                break
+
+        if not is_dup:
+            unique.append(chunk)
+
+    return unique
+
+
 def build_monologue_examples(chunks: list, speaker_tag: str) -> list:
     examples = []
 
@@ -136,7 +162,10 @@ def process_persona(persona: str) -> list:
     print(f"  Cleaned text length: {len(cleaned):,} chars")
 
     chunks = chunk_text(cleaned)
-    print(f"  Number of chunks: {len(chunks)}")
+    print(f"  Number of chunks (before dedup): {len(chunks)}")
+
+    chunks = deduplicate_chunks(chunks)
+    print(f"  Number of chunks (after dedup):  {len(chunks)}")
 
     tag = persona.upper()
     examples = build_monologue_examples(chunks, tag)
@@ -162,12 +191,6 @@ def main():
     print("\n  Building debate-style examples...")
     debate_examples = build_debate_examples(biden_chunks, trump_chunks)
     print(f"  Debate examples: {len(debate_examples)}")
-
-    biden_all = biden_examples + [
-        ex for ex in debate_examples if "[BIDEN]:" in ex.split("[TRUMP]:")[0]
-        or ex.endswith("[BIDEN]:" + ex.split("[BIDEN]:")[-1])
-    ]
-
 
     biden_train = biden_examples + debate_examples
     trump_train = trump_examples + debate_examples

@@ -14,11 +14,9 @@ RAW_DIR = os.path.join(os.path.dirname(__file__), '..', "data", "raw")
 
 TRUMP_DIR = os.path.join(RAW_DIR, "trump")
 BIDEN_DIR = os.path.join(RAW_DIR, "biden")
-DEBATE_DIR = os.path.join(RAW_DIR, "debates")
 
 os.makedirs(BIDEN_DIR, exist_ok=True)
 os.makedirs(TRUMP_DIR, exist_ok=True)
-os.makedirs(DEBATE_DIR, exist_ok=True)
 
 
 # Headers for HTTP requests to mimic a browser
@@ -95,15 +93,18 @@ BIDEN_SPEECH_URLS = {
     ),
 }
 
+# White House speeches (additional source for Biden speeches)
+
 WH_SPEECHES_URL = (
     "https://www.whitehouse.gov/briefing-room/speeches-remarks/"
 )
 
+# Handle directory setup and cleanup
 
 def ensure_dirs():
-    for dir_path in [BIDEN_DIR, TRUMP_DIR, DEBATE_DIR]:
-        if not os.path.exists(dir_path):
-            os.makedirs(dir_path)
+    for dir_path in [BIDEN_DIR, TRUMP_DIR]:
+        os.makedirs(dir_path, exist_ok=True)
+
 
 # Handle Trump PDFs
 
