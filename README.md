@@ -66,13 +66,30 @@ Code/
 
 ## Setup
 
-### 1. Install Dependencies
+### 1. Create a Virtual Environment
+
+```bash
+python -m venv .venv
+```
+
+Activate it:
+
+- **Windows:**
+  ```bash
+  .venv\Scripts\activate
+  ```
+- **macOS / Linux:**
+  ```bash
+  source .venv/bin/activate
+  ```
+
+### 2. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Configure API Keys
+### 3. Configure API Keys
 
 Create a `.env` file in the project root:
 
@@ -83,7 +100,7 @@ AZURE_SPEECH_REGION=your_azure_region_here
 
 > API keys are distributed through Purdue Filelocker by the course instructor.
 
-### 3. Download Training Data
+### 4. Download Training Data
 
 Run the data collection script to download Biden/Trump speeches and transcripts:
 
@@ -96,13 +113,13 @@ Data sources used:
 - **Biden:** Inaugural Address 2021, State of the Union 2022–2024 (UCSB), 15 Rev.com speech transcripts, 2020 presidential debate transcripts
 - **Debates:** UCSB American Presidency Project (primary), Rev.com (fallback); transcripts split by speaker
 
-### 4. Preprocess the Data
+### 5. Preprocess the Data
 
 ```bash
 python scripts/preprocess.py
 ```
 
-### 5. Fine-Tune the Models
+### 6. Fine-Tune the Models
 
 Fine-tune GPT-2 Medium separately for each persona:
 
@@ -116,7 +133,7 @@ python scripts/train_trump.py
 
 > **Note:** Model weights are NOT included in this submission. Run the training scripts to replicate them.
 
-### 6. Run the Debate
+### 7. Run the Debate
 
 Two modes are supported:
 
