@@ -115,6 +115,12 @@ python scripts/train_trump.py
 
 ### 6. Run the Debate
 
+Two modes are supported:
+
+#### Mode A: Two Laptops (Original Setup)
+
+Each laptop runs one persona. They listen to each other via microphone.
+
 On the Biden laptop:
 ```bash
 python scripts/debate.py --persona biden
@@ -123,6 +129,20 @@ python scripts/debate.py --persona biden
 On the Trump laptop:
 ```bash
 python scripts/debate.py --persona trump
+```
+
+#### Mode B: Single Laptop
+
+Both personas run on the same machine. The debate alternates automatically — each model's TTS output is routed back as STT input to the other.
+
+```bash
+python scripts/debate.py --mode single
+```
+
+You can also specify which persona speaks first (default: `biden`):
+```bash
+python scripts/debate.py --mode single --first biden
+python scripts/debate.py --mode single --first trump
 ```
 
 ---
