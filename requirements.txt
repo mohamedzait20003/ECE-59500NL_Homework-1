@@ -20,11 +20,6 @@ azure-cognitiveservices-speech  # Azure Speech SDK: handles BOTH STT and TTS
 pyttsx3                    # Offline TTS fallback (no API key needed)
 
 # ============================================
-# Voice Cloning (Optional - for Biden/Trump voices)
-# ============================================
-TTS                        # Coqui TTS: voice cloning & custom voice synthesis
-
-# ============================================
 # Data Collection & Preprocessing
 # ============================================
 requests                   # Download transcripts, speeches, PDFs
