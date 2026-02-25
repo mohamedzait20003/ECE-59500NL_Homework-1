@@ -2,6 +2,7 @@ import os
 import re
 import csv
 import time
+import shutil
 import requests
 from tqdm import tqdm
 from io import BytesIO
@@ -15,8 +16,6 @@ RAW_DIR = os.path.join(os.path.dirname(__file__), '..', "data", "raw")
 TRUMP_DIR = os.path.join(RAW_DIR, "trump")
 BIDEN_DIR = os.path.join(RAW_DIR, "biden")
 
-os.makedirs(BIDEN_DIR, exist_ok=True)
-os.makedirs(TRUMP_DIR, exist_ok=True)
 
 
 # Headers for HTTP requests to mimic a browser
@@ -103,7 +102,18 @@ WH_SPEECHES_URL = (
 
 def ensure_dirs():
     for dir_path in [BIDEN_DIR, TRUMP_DIR]:
-        os.makedirs(dir_path, exist_ok=True)
+        if os.path.isdir(dir_path):
+            for item in os.listdir(dir_path):
+                item_path = os.path.join(dir_path, item)
+                
+                if os.path.isfile(item_path) or os.path.islink(item_path):
+                    os.remove(item_path)
+                elif os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+            print(f"  Cleared existing directory: {dir_path}")
+        else:
+            os.makedirs(dir_path)
+            print(f"  Created directory: {dir_path}")
 
 
 # Handle Trump PDFs

@@ -174,7 +174,24 @@ def process_persona(persona: str) -> list:
 # Main function
 
 def main():
-    os.makedirs(PROCESSED_DIR, exist_ok=True)
+    if not os.path.isdir(RAW_DIR):
+        print(f"[ERROR] Raw data directory not found: {RAW_DIR}")
+        print("  Please run collect_data.py first.")
+        return
+
+    if os.path.isdir(PROCESSED_DIR):
+        for item in os.listdir(PROCESSED_DIR):
+            item_path = os.path.join(PROCESSED_DIR, item)
+            if os.path.isfile(item_path) or os.path.islink(item_path):
+                os.remove(item_path)
+            elif os.path.isdir(item_path):
+                import shutil
+                shutil.rmtree(item_path)
+        print(f"  Cleared existing processed directory: {PROCESSED_DIR}")
+    else:
+        os.makedirs(PROCESSED_DIR)
+        print(f"  Created processed directory: {PROCESSED_DIR}")
+
     random.seed(42)
 
     print("=" * 60)
