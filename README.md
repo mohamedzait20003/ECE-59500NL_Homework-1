@@ -211,11 +211,23 @@ python scripts/debate.py --mode single --first trump
 
 ## Code Sources
 
-- ELIZA reference: https://github.com/qobi/ece49595nl/blob/main/eliza.py
-- Azure TTS reference: https://github.com/qobi/ece49595nl/blob/main/text_to_speech_microsoft.py
-- Azure STT reference: https://github.com/qobi/ece49595nl/blob/main/speech_to_text_microsoft.py
-- Spoken GPT reference: https://github.com/qobi/ece49595nl/blob/main/spoken_gpt_microsoft.py
-- nanoGPT by Andrej Karpathy: https://github.com/karpathy/nanoGPT
+### Course Reference Implementations
+| Script | Reference |
+|---|---|
+| `debate.py` (STT loop) | [speech_to_text_microsoft.py](https://github.com/qobi/ece49595nl/blob/main/speech_to_text_microsoft.py) |
+| `utils/tts_utils.py` | [text_to_speech_microsoft.py](https://github.com/qobi/ece49595nl/blob/main/text_to_speech_microsoft.py) |
+| `debate.py` (overall loop) | [spoken_gpt_microsoft.py](https://github.com/qobi/ece49595nl/blob/main/spoken_gpt_microsoft.py) |
+
+### API & Library Documentation
+| Library / SDK | Used In | Documentation |
+|---|---|---|
+| Azure Cognitive Services Speech SDK | `debate.py`, `tts_utils.py` | https://learn.microsoft.com/en-us/azure/ai-services/speech-service/get-started-speech-to-text?pivots=programming-language-python |
+| Hugging Face Transformers — GPT-2 | `train_biden.py`, `train_trump.py` | https://huggingface.co/docs/transformers/model_doc/gpt2 |
+| Hugging Face `Trainer` API | `train_biden.py`, `train_trump.py` | https://huggingface.co/docs/transformers/main_classes/trainer |
+| NLTK `sent_tokenize` | `preprocess.py` | https://www.nltk.org/api/nltk.tokenize.html |
+| BeautifulSoup 4 | `collect_data.py` | https://www.crummy.com/software/BeautifulSoup/bs4/doc/ |
+| PyPDF2 | `collect_data.py` | https://pypdf2.readthedocs.io/en/latest/ |
+| `python-dotenv` | `debate.py` | https://pypi.org/project/python-dotenv/ |
 
 ---
 
