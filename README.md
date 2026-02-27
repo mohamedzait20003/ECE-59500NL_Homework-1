@@ -8,32 +8,39 @@
 
 ## Overview
 
-This project implements two AI chatbots that emulate **Former President Joseph R. Biden** and **President Donald J. Trump** in a live spoken debate. Each chatbot is powered by a fine-tuned **GPT-2 Medium** language model. Speech-to-text uses the **Azure Cognitive Services Speech SDK**; text-to-speech uses **Coqui XTTS-v2** for zero-shot voice cloning from real reference audio clips of each speaker.
+This project implements two AI chatbots that emulate **Former President Joseph R. Biden** and **President Donald J. Trump** in a live spoken debate. Each chatbot is powered by a fine-tuned **GPT-2 Medium** language model. Text-to-speech uses **Coqui XTTS-v2** for zero-shot voice cloning from real reference audio clips, with **edge-tts** (Microsoft Neural voices) as an automatic fallback.
 
 ---
 
 ## System Architecture
 
 ```
-Microphone Input
-      │
-      ▼
-Azure STT  ─── stt_utils.py
-(fallback: SpeechRecognition / keyboard)
-      │
-      ▼
-GPT-2 Medium — fine-tuned on Biden / Trump speech data
-      │
-      ▼
-Coqui XTTS-v2 voice cloning  ─── voice_synth_utils.py
-(fallback: pyttsx3 system TTS)
-      │
-      ▼
-Speaker Output
+                  ┌─────────────────────────────────┐
+                  │        start_debate.py           │
+                  │  ┌──────────┐  ┌──────────┐     │
+                  │  │  Trump   │  │  Biden   │     │
+                  │  │ GPT-2 M  │  │ GPT-2 M  │     │
+                  │  └────┬─────┘  └────┬─────┘     │
+                  │       │  prompt/    │            │
+                  │       └────►────────┘            │
+                  └──────────────┬───────────────────┘
+                                 │ text
+                                 ▼
+                    voice_synth_utils.py
+                  ┌──────────────────────────┐
+                  │ 1. Coqui XTTS-v2 (primary) │
+                  │    zero-shot voice clone  │
+                  │ 2. edge-tts (fallback)    │
+                  │    Neural TTS via WS      │
+                  │ 3. Windows MCI (fallback) │
+                  └──────────────────────────┘
+                                 │ audio
+                                 ▼
+                          Speaker Output
 ```
 
-**Two-laptop mode:** Laptop 1 runs the Biden chatbot, Laptop 2 runs Trump. Each listens to the other via microphone and responds.  
-**Single-laptop mode:** Both personas run on one machine and alternate automatically.
+**Two-laptop mode (`--persona trump|biden`):** Each laptop generates one persona; opponent text is pasted from the other machine.  
+**Single-laptop mode (`--persona both`):** Both personas run on one machine and alternate automatically.
 
 ---
 
@@ -49,8 +56,8 @@ Code/
 │   │   ├── biden_train.txt     # Cleaned Biden training data
 │   │   └── trump_train.txt     # Cleaned Trump training data
 │   └── voices/
-│       ├── biden_reference.wav # 30-second Biden voice clip (for XTTS-v2)
-│       └── trump_reference.wav # 30-second Trump voice clip (for XTTS-v2)
+│       ├── biden_reference.wav # ~30-second Biden voice clip (for XTTS-v2)
+│       └── trump_reference.wav # ~30-second Trump voice clip (for XTTS-v2)
 ├── models/
 │   ├── biden/                  # Fine-tuned Biden GPT-2 weights
 │   └── trump/                  # Fine-tuned Trump GPT-2 weights
@@ -58,15 +65,19 @@ Code/
 │   ├── train_biden_colab.ipynb # Google Colab training notebook (Biden)
 │   └── train_trump_colab.ipynb # Google Colab training notebook (Trump)
 ├── scripts/
+│   ├── __init__.py
 │   ├── collect_data.py         # Scrape and download speech data
 │   ├── preprocess_data.py      # Clean and format training data
 │   ├── prepare_voices.py       # Download & process voice reference clips
 │   ├── train_biden.py          # Fine-tune GPT-2 on Biden data (local)
 │   ├── train_trump.py          # Fine-tune GPT-2 on Trump data (local)
-│   └── start_debate.py         # Main debate loop (STT → LLM → TTS)
+│   └── start_debate.py         # Main debate loop (LLM → TTS)
 ├── utils/
+│   ├── __init__.py
 │   ├── stt_utils.py            # Speech-to-Text (Azure / SpeechRecognition)
-│   └── voice_synth_utils.py    # Text-to-Voice (Coqui XTTS-v2 / pyttsx3)
+│   └── voice_synth_utils.py    # Text-to-Voice (Coqui XTTS-v2 / edge-tts)
+├── setup.ps1                   # One-click bootstrap (Windows PowerShell)
+├── setup.sh                    # One-click bootstrap (Linux / macOS)
 ├── .env                        # API keys (NOT committed)
 ├── requirements.txt
 └── README.md
@@ -76,7 +87,27 @@ Code/
 
 ## Setup
 
-### 1. Create a Virtual Environment
+### Option A — One-click bootstrap
+
+Runs the complete pipeline (install → collect → preprocess → voices → train → debate) automatically.
+
+**Windows (PowerShell):**
+```powershell
+.\setup.ps1
+```
+
+**Linux / macOS:**
+```bash
+bash setup.sh
+```
+
+Both scripts create `.venv/`, activate it, install PyTorch (CUDA 12.8) plus all requirements, collect and preprocess data, prepare voices, run both training jobs in parallel, then launch the debate interactively.
+
+---
+
+### Option B — Manual steps
+
+#### 1. Create a Virtual Environment
 
 ```bash
 python -m venv .venv
@@ -84,29 +115,31 @@ python -m venv .venv
 
 Activate it:
 
-- **Windows:** `.venv\Scripts\activate`
+- **Windows:** `.venv\Scripts\Activate.ps1`
 - **macOS / Linux:** `source .venv/bin/activate`
 
-### 2. Install Dependencies
+#### 2. Install Dependencies
 
 ```bash
+# PyTorch with CUDA 12.8 (RTX 40/50 series)
+pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu128
+
+# Remaining dependencies
 pip install -r requirements.txt
 ```
 
-### 3. Configure API Keys
+#### 3. Configure API Keys (optional)
 
-Edit `.env` in the project root:
+Create `.env` in the project root if you want Azure STT:
 
 ```env
 AZURE_SPEECH_KEY=your_azure_speech_key_here
 AZURE_SPEECH_REGION=your_azure_region_here
 ```
 
-> Only the Azure Cognitive Services **Speech** key is required.  
-> Azure OpenAI keys are **not** used — the project runs local GPT-2 models.  
-> Keys are distributed via Purdue Filelocker by the course instructor.
+> TTS works without any API keys — Coqui XTTS-v2 and edge-tts are both local / free.
 
-### 4. Collect Training Data
+#### 4. Collect Training Data
 
 ```bash
 python scripts/collect_data.py
@@ -114,7 +147,7 @@ python scripts/collect_data.py
 
 Downloads Biden/Trump speeches and transcripts into `data/raw/`.
 
-### 5. Preprocess Training Data
+#### 5. Preprocess Training Data
 
 ```bash
 python scripts/preprocess_data.py
@@ -122,7 +155,7 @@ python scripts/preprocess_data.py
 
 Produces `data/processed/biden_train.txt` and `data/processed/trump_train.txt`.
 
-### 6. Prepare Voice Reference Clips
+#### 6. Prepare Voice Reference Clips
 
 ```bash
 python scripts/prepare_voices.py
@@ -134,21 +167,34 @@ Downloads ~30-second audio clips from YouTube, processes them (mono, 22 050 Hz, 
 
 These clips are used by Coqui XTTS-v2 at debate time for zero-shot voice cloning.
 
-### 7. Fine-Tune the Language Models
+#### 7. Fine-Tune the Language Models
 
-#### Option A — Local (GPU recommended)
+**Local (GPU recommended):**
 
 ```bash
-python scripts/train_biden.py
 python scripts/train_trump.py
+python scripts/train_biden.py
 ```
 
-#### Option B — Google Colab (free T4 GPU)
+**Or in parallel:**
+
+```powershell
+# PowerShell
+Start-Process python -ArgumentList "scripts/train_trump.py" -NoNewWindow
+Start-Process python -ArgumentList "scripts/train_biden.py" -NoNewWindow
+```
+
+```bash
+# bash
+python scripts/train_trump.py & python scripts/train_biden.py & wait
+```
+
+**Google Colab (free T4 GPU):**
 
 1. Upload `notebooks/train_biden_colab.ipynb` or `notebooks/train_trump_colab.ipynb` to [colab.research.google.com](https://colab.research.google.com)
-2. Set the runtime to **GPU (T4)**: *Runtime → Change runtime type → T4 GPU*
-3. Run all cells top-to-bottom (training takes ~20–40 min on T4)
-4. **Cell 9 (last cell)** automatically finds the highest-numbered `checkpoint-<step>/` folder (= last epoch), zips it into a single file, and triggers a browser download:
+2. Set the runtime: *Runtime → Change runtime type → T4 GPU*
+3. Run all cells — training takes ~20–40 min on T4
+4. The final cell zips the best checkpoint and triggers a browser download:
    - `biden_checkpoint-<step>.zip` → extract into `models/biden/`
    - `trump_checkpoint-<step>.zip` → extract into `models/trump/`
 
@@ -156,17 +202,16 @@ python scripts/train_trump.py
 models/
 ├── biden/
 │   ├── config.json
-│   ├── model.safetensors      ← ~1.4 GB, the main weights file
+│   ├── model.safetensors      ← ~1.4 GB
 │   ├── tokenizer.json
-│   ├── tokenizer_config.json
-│   └── ...
+│   └── tokenizer_config.json
 └── trump/
-    └── ...
+    └── …
 ```
 
 > Model weights are **not** included in this submission. Run the training scripts to replicate them.
 
-### 8. Run the Debate
+#### 8. Run the Debate
 
 ```bash
 python scripts/start_debate.py [OPTIONS]
@@ -174,39 +219,42 @@ python scripts/start_debate.py [OPTIONS]
 
 | Argument | Default | Description |
 |---|---|---|
-| `--mode` | `both` | `both` = single machine; `biden` / `trump` = this machine plays one side |
-| `--topic` | `the economy` | Debate topic |
-| `--turns` | `5` | Number of exchanges |
-| `--max_new` | `150` | Max new tokens per response |
-| `--temperature` | `0.85` | Sampling temperature |
-| `--top_p` | `0.92` | Nucleus sampling p |
-| `--tts` | `auto` | `auto` = Coqui XTTS-v2 voice cloning; `none` = silent |
-| `--stt` | `auto` | `auto` = Azure STT → SpeechRecognition fallback; `keyboard` = type input |
+| `--persona` | *(interactive)* | `both` = single machine; `trump` / `biden` = this machine plays one side |
+| `--topic` | *(interactive)* | Debate topic |
+| `--turns` | *(interactive)* | Number of exchanges |
+| `--max_new` | `120` | Max new tokens per response |
+| `--temperature` | `0.82` | Sampling temperature |
+| `--top_p` | `0.90` | Nucleus sampling p |
+| `--tts` | *(interactive)* | `auto` = Coqui XTTS-v2 → edge-tts → MCI fallback; `none` = silent |
 | `--trump_model` | `models/trump` | Path to fine-tuned Trump model directory |
 | `--biden_model` | `models/biden` | Path to fine-tuned Biden model directory |
+
+If `--topic`, `--turns`, `--persona`, or `--tts` are omitted the script prompts interactively.
 
 #### Single-machine demo (both personas)
 
 ```bash
-python scripts/start_debate.py --mode both --topic "immigration" --turns 4
+python scripts/start_debate.py --persona both --topic "immigration" --turns 4
 ```
 
 #### Two-laptop setup
 
-On the Biden laptop:
-```bash
-python scripts/start_debate.py --mode biden --topic "immigration"
-```
-
 On the Trump laptop:
 ```bash
-python scripts/start_debate.py --mode trump --topic "immigration"
+python scripts/start_debate.py --persona trump --topic "immigration"
 ```
+
+On the Biden laptop:
+```bash
+python scripts/start_debate.py --persona biden --topic "immigration"
+```
+
+Each machine generates its own persona's responses; opponent text is pasted from the other laptop.
 
 #### Text-only (no audio)
 
 ```bash
-python scripts/start_debate.py --tts none --stt keyboard
+python scripts/start_debate.py --persona both --tts none
 ```
 
 ---
@@ -224,7 +272,8 @@ python scripts/start_debate.py --tts none --stt keyboard
 | Block size | 512 tokens |
 | Mixed precision | FP16 (when CUDA available) |
 | Voice cloning model | Coqui XTTS-v2 (`tts_models/multilingual/multi-dataset/xtts_v2`) |
-| STT backend | Azure Cognitive Services Speech SDK |
+| TTS fallback | edge-tts — Microsoft Neural voices (`en-US-GuyNeural`, `en-US-RogerNeural`) |
+| STT backend | Azure Cognitive Services Speech SDK (optional) |
 
 ---
 
@@ -269,6 +318,7 @@ python scripts/start_debate.py --tts none --stt keyboard
 |---|---|---|
 | Azure Cognitive Services Speech SDK | `stt_utils.py` | https://learn.microsoft.com/en-us/azure/ai-services/speech-service/get-started-speech-to-text?pivots=programming-language-python |
 | Coqui TTS — XTTS-v2 | `voice_synth_utils.py` | https://docs.coqui.ai/en/latest/models/xtts.html |
+| edge-tts (Microsoft Neural TTS) | `voice_synth_utils.py` | https://github.com/rany2/edge-tts |
 | Hugging Face Transformers — GPT-2 | `train_biden.py`, `train_trump.py` | https://huggingface.co/docs/transformers/model_doc/gpt2 |
 | Hugging Face `Trainer` API | `train_biden.py`, `train_trump.py` | https://huggingface.co/docs/transformers/main_classes/trainer |
 | yt-dlp | `prepare_voices.py` | https://github.com/yt-dlp/yt-dlp |
