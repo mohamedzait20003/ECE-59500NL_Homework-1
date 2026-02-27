@@ -7,6 +7,7 @@ import textwrap
 
 import torch
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast
+from utils.stt_utils import transcribe_from_microphone as _stt_listen
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 
@@ -24,12 +25,84 @@ from utils.voice_synth_utils import speak as _tts_speak  # noqa: E402
 TTS_CHAR_LIMIT = 240   # XTTS-v2 hard-warns at 250 chars per sentence
 MAX_RETRIES    = 3     # retry generation this many times if output looks bad
 WIDTH          = 70
+PIPE_DIR       = os.path.join(ROOT_DIR, "data", "debate_pipe")  # two-terminal sync
 
 # Transcript-artifact words that should never start a response
 _BAD_STARTERS = {
     "vernacular", "ernest", "earnest", "interviewer", "moderator",
     "host", "anchor", "reporter", "narrator", "speaker",
 }
+
+# ── Pipe helpers (two-terminal auto-sync) ─────────────────────────────────────
+
+def _pipe_clear() -> None:
+    """Remove any stale message files from a previous run."""
+    os.makedirs(PIPE_DIR, exist_ok=True)
+    for fname in ("trump_to_biden.txt", "biden_to_trump.txt",
+                  "trump_speaking.signal", "biden_speaking.signal",
+                  "moderator_done.signal"):
+        path = os.path.join(PIPE_DIR, fname)
+        if os.path.exists(path):
+            os.remove(path)
+
+
+def _signal_write(name: str) -> None:
+    """Write an empty signal file to PIPE_DIR."""
+    os.makedirs(PIPE_DIR, exist_ok=True)
+    open(os.path.join(PIPE_DIR, name), "w").close()
+
+
+def _signal_wait(name: str, timeout: int = 600) -> None:
+    """Block until a signal file appears, then delete it."""
+    path = os.path.join(PIPE_DIR, name)
+    print(f"  [listen] Waiting for signal: {name} ", end="", flush=True)
+    elapsed, interval = 0.0, 0.3
+    while not os.path.exists(path):
+        time.sleep(interval)
+        elapsed += interval
+        if elapsed % 10 < interval:
+            print(".", end="", flush=True)
+        if elapsed >= timeout:
+            print()
+            raise TimeoutError(f"Signal '{name}' never arrived after {timeout}s.")
+    os.remove(path)
+    print(" ok.")
+
+
+
+    """Write sender's response so the opponent can pick it up."""
+    # sender=trump  → file trump_to_biden.txt  (Biden reads this)
+    # sender=biden  → file biden_to_trump.txt  (Trump reads this)
+    opponent = "biden" if sender == "trump" else "trump"
+    path = os.path.join(PIPE_DIR, f"{sender}_to_{opponent}.txt")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
+def _pipe_read(receiver: str, timeout: int = 600) -> str:
+    """Block until the opponent's message file appears, read it, delete it."""
+    # receiver=trump  → waits for biden_to_trump.txt
+    # receiver=biden  → waits for trump_to_biden.txt
+    sender = "biden" if receiver == "trump" else "trump"
+    path   = os.path.join(PIPE_DIR, f"{sender}_to_{receiver}.txt")
+    print(f"\n  [pipe] Waiting for {sender.upper()} ", end="", flush=True)
+    elapsed, interval = 0.0, 0.5
+    while not os.path.exists(path):
+        time.sleep(interval)
+        elapsed += interval
+        if elapsed % 10 < interval:
+            print(".", end="", flush=True)
+        if elapsed >= timeout:
+            print()
+            raise TimeoutError(f"No response from {sender} after {timeout}s — did the other terminal crash?")
+    # Small grace period so the writer finishes flushing
+    time.sleep(0.2)
+    with open(path, "r", encoding="utf-8") as f:
+        text = f.read().strip()
+    os.remove(path)
+    print(f" received.")
+    return text
+
 
 # ── CLI & interactive setup ────────────────────────────────────────────────
 
@@ -64,6 +137,16 @@ def parse_args():
     p.add_argument("--tts",         type=str,   default=None,
                    choices=["auto", "none"],
                    help="auto = voice output via Coqui/edge-tts; none = silent.")
+    p.add_argument("--pipe",        action="store_true", default=False,
+                   help=("Two-terminal auto-sync mode.\n"
+                         "Both terminals watch a shared folder instead of\n"
+                         "requiring manual copy-paste. Start Biden first,\n"
+                         "then Trump — Trump goes first automatically."))
+    p.add_argument("--listen",      action="store_true", default=False,
+                   help=("Two-laptop microphone mode.\n"
+                         "Text travels acoustically: TTS speaks, opponent\n"
+                         "mic captures via STT. Start Biden first, then Trump.\n"
+                         "Requires a microphone on each laptop."))
     return p.parse_args()
 
 
@@ -402,16 +485,30 @@ def run_debate_both(args, speak_fn):
 
 
 def run_debate_solo(args, speak_fn):
-    """Two-laptop mode: this machine generates ONE persona.
-    The opponent's text is entered manually via stdin from the other laptop."""
+    """Two-terminal mode: this machine generates ONE persona.
+
+    --pipe  (recommended): fully automatic. Both terminals watch a shared
+            folder — no copy-paste needed. Start Biden first, then Trump.
+    no flag: manual fallback — opponent text entered via stdin.
+    """
     persona  = args.persona
     opponent = "biden" if persona == "trump" else "trump"
+    pipe     = getattr(args, "pipe", False)
 
     print("\n" + "=" * WIDTH)
-    print(f"  Biden vs. Trump AI Debate  [{persona.upper()} laptop]")
+    print(f"  Biden vs. Trump AI Debate  [{persona.upper()} terminal]")
     print(f"  Topic: {args.topic}  |  Exchanges: {args.turns}")
-    print(f"  Opponent ({opponent.upper()}) text will be pasted from the other laptop.")
+    if pipe:
+        print(f"  Mode: AUTO SYNC via {os.path.relpath(PIPE_DIR)}")
+    else:
+        print(f"  Mode: MANUAL — paste {opponent.upper()} replies when prompted")
     print("=" * WIDTH)
+
+    if pipe:
+        _pipe_clear()
+        print(f"  [pipe] Shared folder ready: {PIPE_DIR}")
+        if persona == "biden":
+            print("  [pipe] Biden is ready — waiting for Trump to start ...")
 
     model_dir = args.trump_model if persona == "trump" else args.biden_model
     model, tok, dev = load_model_and_tokenizer(model_dir, persona)
@@ -426,6 +523,15 @@ def run_debate_solo(args, speak_fn):
         print(f"{'═' * WIDTH}")
 
         if persona == "trump":
+            # Trump always goes first — no need to wait on turn 1
+            if pipe and turn > 1:
+                opp_prev = _pipe_read("trump")
+                banner("BIDEN  [other terminal]", opp_prev)
+
+            elif not pipe and turn > 1:
+                print("\n  Paste Biden's reply:")
+                opp_prev = input("  BIDEN: ").strip() or "I disagree."
+
             response = generate_response(
                 model, tok, dev,
                 speaker       = "trump",
@@ -437,18 +543,23 @@ def run_debate_solo(args, speak_fn):
                 top_p         = args.top_p,
                 bad_word_ids  = bad_ids,
             )
-            banner("TRUMP  [this machine]", response)
+            banner("TRUMP  [this terminal]", response)
             speak_fn(response, "trump")
             own_prev = response
 
-            if turn < args.turns:
-                print("\n  Copy the above to the Biden laptop, then paste Biden's reply here:")
-                opp_prev = input("  BIDEN: ").strip() or "I disagree."
+            if pipe:
+                _pipe_write("trump", response)
+            elif turn < args.turns:
+                print("\n  Copy the above to the Biden terminal now.")
 
-        else:  # biden
-            label = "Trump's opening statement" if turn == 1 else "Trump's latest statement"
-            print(f"\n  Paste {label} from the Trump laptop:")
-            opp_prev = input("  TRUMP: ").strip() or "No comment."
+        else:  # biden — always waits for Trump first
+            if pipe:
+                opp_prev = _pipe_read("biden")
+                banner("TRUMP  [other terminal]", opp_prev)
+            else:
+                label = "Trump's opening statement" if turn == 1 else "Trump's latest statement"
+                print(f"\n  Paste {label}:")
+                opp_prev = input("  TRUMP: ").strip() or "No comment."
 
             response = generate_response(
                 model, tok, dev,
@@ -460,16 +571,137 @@ def run_debate_solo(args, speak_fn):
                 top_p         = args.top_p,
                 bad_word_ids  = bad_ids,
             )
-            banner("BIDEN  [this machine]", response)
+            banner("BIDEN  [this terminal]", response)
             speak_fn(response, "biden")
             own_prev = response
+
+            if pipe:
+                _pipe_write("biden", response)
+            elif turn < args.turns:
+                print("\n  Copy the above to the Trump terminal now.")
 
     print("\n" + "=" * WIDTH)
     print("  Debate complete.")
     print("=" * WIDTH)
 
 
-# ── Entry point ────────────────────────────────────────────────────────────────
+def run_debate_listen(args, speak_fn):
+    """Two-laptop microphone mode.
+
+    Text travels acoustically — TTS speaks, the opponent\'s laptop
+    captures it via microphone STT.  Signal files (empty, no text)
+    in PIPE_DIR coordinate *when* each laptop should start listening.
+
+    Start order:
+      1. Run Biden terminal first  → speaks moderator intro, waits.
+      2. Run Trump terminal second → hears the signal, generates + speaks,
+                                     Biden\'s mic captures it via STT.
+      Alternates Trump → Biden → Trump … for each exchange.
+    """
+    persona  = args.persona
+    opponent = "biden" if persona == "trump" else "trump"
+
+    print("\n" + "=" * WIDTH)
+    print(f"  Biden vs. Trump AI Debate  [{persona.upper()} laptop — MICROPHONE mode]")
+    print(f"  Topic: {args.topic}  |  Exchanges: {args.turns}")
+    print(f"  STT captures opponent speech from microphone automatically.")
+    print("=" * WIDTH)
+
+    _pipe_clear()
+
+    model_dir = args.trump_model if persona == "trump" else args.biden_model
+    model, tok, dev = load_model_and_tokenizer(model_dir, persona)
+    bad_ids = _build_bad_word_ids(tok)
+
+    # ─ Moderator intro (Biden terminal only) ────────────────────────────────
+    if persona == "biden":
+        intro = (
+            f"Welcome to the Biden versus Trump AI Debate. "
+            f"Tonight's topic is {args.topic}. "
+            f"We will have {args.turns} exchange"
+            + ("s" if args.turns != 1 else "") +
+            ". Mr. Trump, you have the opening statement."
+        )
+        banner("MODERATOR", intro)
+        speak_fn(intro, "moderator")
+        time.sleep(0.5)
+        # Signal Trump: intro done, start your first turn
+        _signal_write("moderator_done.signal")
+        print("  [listen] Moderator intro complete — Trump laptop will speak next.")
+    else:  # trump
+        print("  [listen] Waiting for Biden laptop to finish moderator intro …")
+        _signal_wait("moderator_done.signal")
+
+    own_prev = ""
+    opp_prev = ""
+
+    for turn in range(1, args.turns + 1):
+        print(f"\n{'═' * WIDTH}")
+        print(f"  Exchange {turn} of {args.turns}")
+        print(f"{'═' * WIDTH}")
+
+        # ─ Trump\'s turn ─────────────────────────────────────────────────────
+        if persona == "trump":
+            response = generate_response(
+                model, tok, dev,
+                speaker       = "trump",
+                topic         = args.topic,
+                opponent_text = opp_prev,
+                own_prev_text = own_prev,
+                max_new       = args.max_new,
+                temperature   = args.temperature,
+                top_p         = args.top_p,
+                bad_word_ids  = bad_ids,
+            )
+            banner("TRUMP  [this laptop]", response)
+            # Signal Biden to start listening, then speak
+            _signal_write("trump_speaking.signal")
+            speak_fn(response, "trump")
+            own_prev = response
+
+        else:  # biden waits for trump
+            print("  [listen] Waiting for Trump to start speaking …")
+            _signal_wait("trump_speaking.signal")
+            print("  [listen] Listening to Trump via microphone …")
+            opp_prev = _stt_listen(timeout_seconds=60) or "I have nothing to respond to that."
+            banner("TRUMP  [captured via mic]", opp_prev)
+
+        time.sleep(0.4)
+
+        # ─ Biden\'s turn ──────────────────────────────────────────────────────
+        if persona == "biden":
+            response = generate_response(
+                model, tok, dev,
+                speaker       = "biden",
+                topic         = args.topic,
+                opponent_text = opp_prev,
+                max_new       = args.max_new,
+                temperature   = args.temperature,
+                top_p         = args.top_p,
+                bad_word_ids  = bad_ids,
+            )
+            banner("BIDEN  [this laptop]", response)
+            # Signal Trump to start listening, then speak
+            _signal_write("biden_speaking.signal")
+            speak_fn(response, "biden")
+            own_prev = response
+
+        else:  # trump waits for biden
+            if turn < args.turns:  # no need to listen after last exchange
+                print("  [listen] Waiting for Biden to start speaking …")
+                _signal_wait("biden_speaking.signal")
+                print("  [listen] Listening to Biden via microphone …")
+                opp_prev = _stt_listen(timeout_seconds=60) or "I disagree."
+                banner("BIDEN  [captured via mic]", opp_prev)
+
+        time.sleep(0.4)
+
+    print("\n" + "=" * WIDTH)
+    print("  Debate complete.")
+    print("=" * WIDTH)
+
+
+
 
 def main():
     args = parse_args()
@@ -484,6 +716,8 @@ def main():
 
     if args.persona == "both":
         run_debate_both(args, speak_fn)
+    elif getattr(args, "listen", False):
+        run_debate_listen(args, speak_fn)
     else:
         run_debate_solo(args, speak_fn)
 

@@ -156,15 +156,20 @@ def download_and_extract(persona: str, urls: list, start_sec: int, duration: int
             print(f"  [SKIP] {e}")
             continue
     else:
-        print(f"\n[ERROR] All {len(urls)} sources failed for {persona.upper()}.")
+        print(f"\n[WARNING] All {len(urls)} sources failed for {persona.upper()}.")
         print(f"  Last error: {last_error}")
-        print(f"\n  Manual fix — download a clip yourself and import it:")
-        print(f"    1. Open any {persona.title()} solo speech on YouTube in your browser")
-        print(f"    2. Download ~30s of audio as WAV using any online converter")
-        print(f"       (e.g. https://ytmp3.cc  or  https://yt1s.com)")
-        print(f"    3. Run:")
-        print(f"         python scripts/prepare_voices.py --persona {persona} --mode import --file \"C:/path/to/clip.wav\"")
-        sys.exit(1)
+        print(f"\n  Network access to YouTube is unavailable (e.g. on an HPC cluster).")
+        print(f"  Generating a silent placeholder WAV so the pipeline can continue.")
+        print(f"  Voice cloning will fall back to the default TTS voice.")
+        print(f"\n  To supply a real clip later, run:")
+        print(f"    python scripts/prepare_voices.py --persona {persona} --mode import --file /path/to/clip.wav")
+
+        # ── Synthetic silent placeholder ──────────────────────────────────────
+        os.makedirs(VOICES_DIR, exist_ok=True)
+        silence = np.zeros(int(30 * TARGET_SR), dtype=np.float32)
+        sf.write(out_path, silence, TARGET_SR)
+        print(f"  [PLACEHOLDER] Saved silent reference: {out_path}")
+        return out_path
 
     # Extract time slice -------------------------------------------------------
     start_sample = int(start_sec * orig_sr)

@@ -30,31 +30,63 @@ pip install --quiet -r "$ROOT/requirements.txt"
 
 # ── 3. Data collection ─────────────────────────────────────────────────────────
 
-echo -e "\n[setup] Collecting raw data …"
-python "$ROOT/scripts/collect_data.py"
+if [ -f "$ROOT/data/raw/biden/biden_debate_2020_1.txt" ] && \
+   [ -f "$ROOT/data/raw/trump/trump_debate_2020_1.txt" ]; then
+    echo -e "\n[setup] Raw data already exists — skipping collection."
+else
+    echo -e "\n[setup] Collecting raw data …"
+    python "$ROOT/scripts/collect_data.py"
+fi
 
 # ── 4. Preprocessing ───────────────────────────────────────────────────────────
 
-echo -e "\n[setup] Preprocessing data …"
-python "$ROOT/scripts/preprocess_data.py"
+if [ -f "$ROOT/data/processed/biden_train.txt" ] && \
+   [ -f "$ROOT/data/processed/trump_train.txt" ]; then
+    echo -e "\n[setup] Processed data already exists — skipping preprocessing."
+else
+    echo -e "\n[setup] Preprocessing data …"
+    python "$ROOT/scripts/preprocess_data.py"
+fi
 
 # ── 5. Voice reference prep ────────────────────────────────────────────────────
 
-echo -e "\n[setup] Preparing voice references …"
-python "$ROOT/scripts/prepare_voices.py"
+if [ -f "$ROOT/data/voices/biden_reference.wav" ] && \
+   [ -f "$ROOT/data/voices/trump_reference.wav" ]; then
+    echo -e "\n[setup] Voice references already exist — skipping voice prep."
+else
+    echo -e "\n[setup] Preparing voice references …"
+    python "$ROOT/scripts/prepare_voices.py" || {
+        echo "[WARNING] Voice preparation encountered an error (non-fatal)."
+        echo "          TTS will use the default voice. Run prepare_voices.py --mode import later."
+    }
+fi
 
 # ── 6. Parallel training ───────────────────────────────────────────────────────
 
-echo -e "\n[setup] Starting Trump and Biden training in parallel …"
-python "$ROOT/scripts/train_trump.py" &
-TRUMP_PID=$!
+TRUMP_PID=""
+BIDEN_PID=""
 
-python "$ROOT/scripts/train_biden.py" &
-BIDEN_PID=$!
+if [ -f "$ROOT/models/trump/model.safetensors" ]; then
+    echo -e "\n[setup] Trump model already exists — skipping training."
+else
+    echo -e "\n[setup] Starting Trump training in background …"
+    python "$ROOT/scripts/train_trump.py" &
+    TRUMP_PID=$!
+fi
 
-echo "[setup] Waiting for both training jobs to finish …"
-wait $TRUMP_PID || echo "[WARNING] Trump training exited with non-zero status"
-wait $BIDEN_PID || echo "[WARNING] Biden training exited with non-zero status"
+if [ -f "$ROOT/models/biden/model.safetensors" ]; then
+    echo -e "\n[setup] Biden model already exists — skipping training."
+else
+    echo -e "\n[setup] Starting Biden training in background …"
+    python "$ROOT/scripts/train_biden.py" &
+    BIDEN_PID=$!
+fi
+
+if [ -n "$TRUMP_PID" ] || [ -n "$BIDEN_PID" ]; then
+    echo "[setup] Waiting for training jobs to finish …"
+    [ -n "$TRUMP_PID" ] && { wait "$TRUMP_PID" || echo "[WARNING] Trump training exited with non-zero status"; }
+    [ -n "$BIDEN_PID" ] && { wait "$BIDEN_PID" || echo "[WARNING] Biden training exited with non-zero status"; }
+fi
 
 # ── 7. Launch debate ───────────────────────────────────────────────────────────
 

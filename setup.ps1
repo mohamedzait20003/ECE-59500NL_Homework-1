@@ -31,37 +31,73 @@ pip install --quiet -r (Join-Path $Root "requirements.txt")
 
 # ── 3. Data collection ─────────────────────────────────────────────────────────
 
-Write-Host "`n[setup] Collecting raw data …" -ForegroundColor Cyan
-python (Join-Path $Root "scripts\collect_data.py")
+$BidenRaw  = Join-Path $Root "data\raw\biden\biden_debate_2020_1.txt"
+$TrumpRaw  = Join-Path $Root "data\raw\trump\trump_debate_2020_1.txt"
+if ((Test-Path $BidenRaw) -and (Test-Path $TrumpRaw)) {
+    Write-Host "`n[setup] Raw data already exists — skipping collection." -ForegroundColor Yellow
+} else {
+    Write-Host "`n[setup] Collecting raw data …" -ForegroundColor Cyan
+    python (Join-Path $Root "scripts\collect_data.py")
+}
 
 # ── 4. Preprocessing ───────────────────────────────────────────────────────────
 
-Write-Host "`n[setup] Preprocessing data …" -ForegroundColor Cyan
-python (Join-Path $Root "scripts\preprocess_data.py")
+$BidenTrain = Join-Path $Root "data\processed\biden_train.txt"
+$TrumpTrain = Join-Path $Root "data\processed\trump_train.txt"
+if ((Test-Path $BidenTrain) -and (Test-Path $TrumpTrain)) {
+    Write-Host "`n[setup] Processed data already exists — skipping preprocessing." -ForegroundColor Yellow
+} else {
+    Write-Host "`n[setup] Preprocessing data …" -ForegroundColor Cyan
+    python (Join-Path $Root "scripts\preprocess_data.py")
+}
 
 # ── 5. Voice reference prep ────────────────────────────────────────────────────
 
-Write-Host "`n[setup] Preparing voice references …" -ForegroundColor Cyan
-python (Join-Path $Root "scripts\prepare_voices.py")
+$BidenVoice = Join-Path $Root "data\voices\biden_reference.wav"
+$TrumpVoice = Join-Path $Root "data\voices\trump_reference.wav"
+if ((Test-Path $BidenVoice) -and (Test-Path $TrumpVoice)) {
+    Write-Host "`n[setup] Voice references already exist — skipping voice prep." -ForegroundColor Yellow
+} else {
+    Write-Host "`n[setup] Preparing voice references …" -ForegroundColor Cyan
+    python (Join-Path $Root "scripts\prepare_voices.py")
+}
 
 # ── 6. Parallel training ───────────────────────────────────────────────────────
 
-Write-Host "`n[setup] Starting Trump training in background …" -ForegroundColor Cyan
-$TrumpJob = Start-Process python `
-    -ArgumentList (Join-Path $Root "scripts\train_trump.py") `
-    -PassThru -NoNewWindow
+$BidenModel = Join-Path $Root "models\biden\model.safetensors"
+$TrumpModel = Join-Path $Root "models\trump\model.safetensors"
+$TrumpJob   = $null
+$BidenJob   = $null
 
-Write-Host "[setup] Starting Biden training in background …" -ForegroundColor Cyan
-$BidenJob = Start-Process python `
-    -ArgumentList (Join-Path $Root "scripts\train_biden.py") `
-    -PassThru -NoNewWindow
+if (Test-Path $TrumpModel) {
+    Write-Host "`n[setup] Trump model already exists — skipping training." -ForegroundColor Yellow
+} else {
+    Write-Host "`n[setup] Starting Trump training in background …" -ForegroundColor Cyan
+    $TrumpJob = Start-Process python `
+        -ArgumentList (Join-Path $Root "scripts\train_trump.py") `
+        -PassThru -NoNewWindow
+}
 
-Write-Host "[setup] Waiting for both training jobs to finish …" -ForegroundColor Yellow
-$TrumpJob.WaitForExit()
-$BidenJob.WaitForExit()
+if (Test-Path $BidenModel) {
+    Write-Host "[setup] Biden model already exists — skipping training." -ForegroundColor Yellow
+} else {
+    Write-Host "[setup] Starting Biden training in background …" -ForegroundColor Cyan
+    $BidenJob = Start-Process python `
+        -ArgumentList (Join-Path $Root "scripts\train_biden.py") `
+        -PassThru -NoNewWindow
+}
 
-if ($TrumpJob.ExitCode -ne 0) { Write-Warning "Trump training exited with code $($TrumpJob.ExitCode)" }
-if ($BidenJob.ExitCode -ne 0) { Write-Warning "Biden training exited with code $($BidenJob.ExitCode)" }
+if ($TrumpJob -or $BidenJob) {
+    Write-Host "[setup] Waiting for training jobs to finish …" -ForegroundColor Yellow
+    if ($TrumpJob) {
+        $TrumpJob.WaitForExit()
+        if ($TrumpJob.ExitCode -ne 0) { Write-Warning "Trump training exited with code $($TrumpJob.ExitCode)" }
+    }
+    if ($BidenJob) {
+        $BidenJob.WaitForExit()
+        if ($BidenJob.ExitCode -ne 0) { Write-Warning "Biden training exited with code $($BidenJob.ExitCode)" }
+    }
+}
 
 # ── 7. Launch debate ───────────────────────────────────────────────────────────
 
