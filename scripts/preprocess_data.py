@@ -1,11 +1,12 @@
 import os
 import re
-import nltk
 import glob
 import random
+import shutil
+import nltk
 from nltk.tokenize import sent_tokenize
 
-# Ensure necessary NLTK resources are available
+# ── NLTK bootstrap ──────────────────────────────────────────────────────
 
 try:
     nltk.data.find("tokenizers/punkt")
@@ -18,17 +19,15 @@ except LookupError:
     nltk.download("punkt_tab", quiet=True)
 
 
-# Define directories
+# ── Paths & constants ──────────────────────────────────────────────────
 
-RAW_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "raw")
+RAW_DIR       = os.path.join(os.path.dirname(__file__), "..", "data", "raw")
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
-
-# Constants for chunking
 
 MIN_EXAMPLE_CHARS = 50
 MAX_EXAMPLE_CHARS = 3000
 
-# Cleaning function
+# ── Text cleaning ───────────────────────────────────────────────────────
 
 def clean_text(text: str) -> str:
     text = text.encode("ascii", errors="ignore").decode("ascii")
@@ -43,7 +42,7 @@ def clean_text(text: str) -> str:
     text = "\n".join(line for line in lines if line)
     return text.strip()
 
-# chunking function
+# ── Text chunking ───────────────────────────────────────────────────────
 
 def chunk_text(text: str, max_chars: int = MAX_EXAMPLE_CHARS) -> list:
     sentences = sent_tokenize(text)
@@ -72,7 +71,7 @@ def chunk_text(text: str, max_chars: int = MAX_EXAMPLE_CHARS) -> list:
 
     return [c for c in chunks if len(c) >= MIN_EXAMPLE_CHARS]
 
-# Loading and example-building functions
+# ── Data loading & example building ────────────────────────────────────
 
 def load_raw_files(persona_dir: str) -> str:
     all_text = []
@@ -121,7 +120,7 @@ def build_monologue_examples(chunks: list, speaker_tag: str) -> list:
     return examples
 
 
-# Build debate examples by pairing chunks from both personas
+# ── Debate-style example building ──────────────────────────────────────
 
 def build_debate_examples(biden_chunks: list, trump_chunks: list) -> list:
     examples = []
@@ -171,7 +170,7 @@ def process_persona(persona: str) -> list:
     examples = build_monologue_examples(chunks, tag)
     return examples, chunks
 
-# Main function
+# ── Main ────────────────────────────────────────────────────────────────
 
 def main():
     if not os.path.isdir(RAW_DIR):
@@ -185,7 +184,6 @@ def main():
             if os.path.isfile(item_path) or os.path.islink(item_path):
                 os.remove(item_path)
             elif os.path.isdir(item_path):
-                import shutil
                 shutil.rmtree(item_path)
         print(f"  Cleared existing processed directory: {PROCESSED_DIR}")
     else:

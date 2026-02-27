@@ -9,16 +9,14 @@ from io import BytesIO
 from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
 
-# Constants for file paths
+# ── Paths ──────────────────────────────────────────────────────────────────────
 
-RAW_DIR = os.path.join(os.path.dirname(__file__), '..', "data", "raw")
-
+RAW_DIR   = os.path.join(os.path.dirname(__file__), '..', "data", "raw")
 TRUMP_DIR = os.path.join(RAW_DIR, "trump")
 BIDEN_DIR = os.path.join(RAW_DIR, "biden")
 
 
-
-# Headers for HTTP requests to mimic a browser
+# ── HTTP headers ──────────────────────────────────────────────────────────
 
 HEADERS = {
     "User-Agent": (
@@ -28,8 +26,9 @@ HEADERS = {
     )
 }
 
-# Trump PDFs to collect
+# ── Source URLs ──────────────────────────────────────────────────────────
 
+# Trump PDFs
 TRUMP_PDFS = {
     "art_of_the_deal.txt": (
         "https://ia601405.us.archive.org/19/items/TrumpTheArtOfTheDeal/"
@@ -41,13 +40,11 @@ TRUMP_PDFS = {
     ),
 }
 
-# Rev.com search URLs for individual speeches (secondary source)
-
+# Rev.com search URLs
 TRUMP_REV_SEARCH = "https://www.rev.com/blog/transcripts?s=trump+speech"
 BIDEN_REV_SEARCH = "https://www.rev.com/blog/transcripts?s=biden+speech"
 
-# UCSB American Presidency Project reliable debate transcripts
-
+# UCSB debate transcripts (primary source)
 UCSB_DEBATE_URLS = {
     "debate_2020_1.txt": (
         "https://www.presidency.ucsb.edu/documents/"
@@ -60,7 +57,6 @@ UCSB_DEBATE_URLS = {
 }
 
 # Rev.com debate URLs (fallback)
-
 REV_DEBATE_URLS = {
     "debate_2020_1.txt": (
         "https://www.rev.com/blog/transcripts/"
@@ -72,7 +68,7 @@ REV_DEBATE_URLS = {
     ),
 }
 
-# Biden speeches from UCSB (reliable, clean text)
+# Biden speeches from UCSB
 BIDEN_SPEECH_URLS = {
     "biden_inaugural_2021.txt": (
         "https://www.presidency.ucsb.edu/documents/"
@@ -92,13 +88,12 @@ BIDEN_SPEECH_URLS = {
     ),
 }
 
-# White House speeches (additional source for Biden speeches)
-
+# White House speeches URL
 WH_SPEECHES_URL = (
     "https://www.whitehouse.gov/briefing-room/speeches-remarks/"
 )
 
-# Handle directory setup and cleanup
+# ── Directory setup ──────────────────────────────────────────────────────
 
 def ensure_dirs():
     for dir_path in [BIDEN_DIR, TRUMP_DIR]:
@@ -116,7 +111,7 @@ def ensure_dirs():
             print(f"  Created directory: {dir_path}")
 
 
-# Handle Trump PDFs
+# ── Trump PDFs ───────────────────────────────────────────────────────────
 
 def download_pdf_text(url, output_path):
     print(f"\n=== Downloading PDF from {url} ===")
@@ -154,7 +149,7 @@ def collect_trump_pdfs():
                 f.write(text)
             print(f"Saved PDF text to {output_path}")
 
-# Handle UCSB American Presidency Project scraping
+# ── UCSB scraping ────────────────────────────────────────────────────────
 
 def scrape_ucsb_page(url: str) -> str:
     """Scrape text content from presidency.ucsb.edu pages."""
@@ -241,7 +236,7 @@ def split_debate_by_speaker(text: str):
     return biden_lines, trump_lines
 
 
-# Handle Rev.com transcripts (secondary / fallback source)
+# ── Rev.com scraping ────────────────────────────────────────────────────
 
 def scrape_rev_transcript(url: str) -> str:
     print(f"  Fetching Rev.com: {url[:80]}...")
@@ -325,7 +320,7 @@ def collect_debate_transcripts():
         time.sleep(2)
 
 
-# ===== Biden speeches from UCSB =====
+# ── Biden speeches ─────────────────────────────────────────────────────
 
 def collect_biden_speeches_ucsb():
     """Collect Biden speeches from the American Presidency Project."""
@@ -349,7 +344,7 @@ def collect_biden_speeches_ucsb():
 
         time.sleep(2)
 
-# Handle Rev.com individual speeches
+# ── Rev.com individual speech scraping ────────────────────────────────
 
 def scrape_rev_search_links(search_url: str, max_pages: int = 3) -> list:
     links = []
@@ -431,7 +426,7 @@ def collect_biden_speeches_rev():
 
         time.sleep(2)
 
-# Handle White House speeches
+# ── White House speeches ────────────────────────────────────────────────
 
 def collect_whitehouse_speeches():
     print("\n=== Collecting White House Speeches ===")
@@ -486,7 +481,7 @@ def collect_whitehouse_speeches():
     except Exception as e:
         print(f"  [WARN] Failed to fetch WH speeches index: {e}")
 
-# Handle Trump Tweets
+# ── Trump tweets ────────────────────────────────────────────────────────
 
 def collect_trump_tweets():
     print("\n=== Collecting Trump Tweets ===")
@@ -525,7 +520,7 @@ def collect_trump_tweets():
         print(f"  [WARN] Failed to parse trump_tweets.csv: {e}")
 
 
-# Main function to run all collection steps
+# ── Main ────────────────────────────────────────────────────────────────
 
 def main():
     print("=" * 60)
@@ -557,7 +552,7 @@ def main():
     print(f"  Biden files with content: {biden_files}")
     print("=" * 60)
 
-# Run the main function
+# ── Entry point ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     main()

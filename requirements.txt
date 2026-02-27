@@ -1,43 +1,41 @@
-# ============================================
-# LLM / Fine-Tuning (GPT-2 Medium)
-# ============================================
-transformers               # Hugging Face: load, fine-tune, and tokenize GPT-2 Medium
-torch                      # PyTorch: deep learning backend
-datasets                   # Hugging Face: load and preprocess training data
-accelerate                 # Efficient training
-scipy                      # Required dependency for trainer utilities
-scikit-learn               # Evaluation metrics during training
-wandb                      # Experiment tracking & logging
+# PyTorch — CUDA 12.8 (RTX 5070)
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch
+torchvision
+torchaudio
 
-# ============================================
-# Speech-to-Text + Text-to-Speech (Azure)
-# ============================================
-azure-cognitiveservices-speech  # Azure Speech SDK: handles BOTH STT and TTS
+# LLM / Fine-Tuning
+transformers
+datasets
+accelerate
+scipy
+scikit-learn
 
-# ============================================
-# Text-to-Speech (Local Fallback)
-# ============================================
-pyttsx3                    # Offline TTS fallback (no API key needed)
+# Speech-to-Text
+SpeechRecognition
+azure-cognitiveservices-speech
 
-# ============================================
-# Data Collection & Preprocessing
-# ============================================
-requests                   # Download transcripts, speeches, PDFs
-beautifulsoup4             # Scrape web pages for speech text
-trafilatura                # Extract clean text from web articles
-PyPDF2                     # Extract text from PDF books
-lxml                       # HTML/XML parser (beautifulsoup backend)
+# Voice Cloning
+coqui-tts
+sounddevice>=0.4.6
+soundfile>=0.12.1
+pydub>=0.25.1
+av
+yt-dlp
+edge-tts
 
-# ============================================
-# Text Processing / NLP Utilities
-# ============================================
-nltk                       # Tokenization, sentence splitting, text cleanup
-regex                      # Advanced regex for cleaning training data
-ftfy                       # Fix unicode/encoding issues in scraped text
+# Data Collection
+requests
+beautifulsoup4
+PyPDF2
+lxml
 
-# ============================================
-# General Utilities
-# ============================================
-numpy                      # Numerical computing
-tqdm                       # Progress bars
-python-dotenv              # Load API keys from .env file
+# NLP Utilities
+nltk
+regex
+ftfy
+
+# General
+numpy
+tqdm
+python-dotenv
