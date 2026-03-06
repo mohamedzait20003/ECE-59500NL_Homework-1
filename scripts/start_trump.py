@@ -348,11 +348,11 @@ def parse_args():
         ),
     )
     p.add_argument(
-        "--sync", type=str, default="audio",
+        "--sync", type=str, default="redis",
         choices=["audio", "redis"],
         help=(
-            "audio — mic-to-speaker sync between laptops (original)\n"
-            "redis — Redis-based text sync (reliable)  (default: audio)"
+            "redis — Redis-based text sync (default, config via .env)\n"
+            "audio — mic-to-speaker sync between laptops (fallback)"
         ),
     )
     p.add_argument(
@@ -373,15 +373,6 @@ def parse_args():
                    help="Path to fine-tuned Trump model directory")
     p.add_argument("--biden_model", type=str, default=DEFAULT_BIDEN_DIR,
                    help="Path to fine-tuned Biden model directory")
-    # Redis options (only used when --sync redis)
-    p.add_argument("--redis_host",    type=str, default="localhost",
-                   help="Redis server hostname/IP (default: localhost)")
-    p.add_argument("--redis_port",    type=int, default=6379,
-                   help="Redis server port (default: 6379)")
-    p.add_argument("--redis_password", type=str, default="",
-                   help="Redis password (default: none)")
-    p.add_argument("--redis_session", type=str, default="default",
-                   help="Redis session name for key isolation (default: 'default')")
     return p.parse_args()
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -408,13 +399,7 @@ def run_debate(args) -> None:
             print("  ERROR: 'redis' package not installed. "
                   "Run:  pip install redis")
             return
-        sync = DebateSync(
-            persona=PERSONA,
-            redis_host=args.redis_host,
-            redis_port=args.redis_port,
-            redis_password=args.redis_password,
-            session=args.redis_session,
-        )
+        sync = DebateSync(persona=PERSONA)
         print(f"\n  Waiting for {OPPONENT.upper()} to connect …")
         if not sync.wait_for_opponent(timeout=300):
             print("  Opponent did not connect in time. Exiting.")

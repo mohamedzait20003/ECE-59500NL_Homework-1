@@ -17,9 +17,16 @@ Channels (Redis list keys):
   debate:{session}:to_biden     — messages for the Biden terminal
   debate:{session}:ready        — both sides push "ready" here to handshake
 
+All connection parameters are read from environment variables (or .env):
+
+    REDIS_HOST      default: localhost
+    REDIS_PORT      default: 6379
+    REDIS_PASSWORD   default: (none)
+    REDIS_SESSION    default: default
+
 Usage from a debate script:
 
-    sync = DebateSync("trump", redis_host="192.168.1.50")
+    sync = DebateSync("trump")        # reads REDIS_* from env
     sync.wait_for_opponent()          # blocks until both sides are ready
     sync.send(text)                   # pushes text to opponent's queue
     opp = sync.receive(timeout=120)   # blocks until opponent sends text
@@ -45,14 +52,11 @@ except ImportError:
 class DebateSync:
     """Thin wrapper around Redis for debate turn synchronisation."""
 
-    def __init__(
-        self,
-        persona: str,
-        redis_host: str = "localhost",
-        redis_port: int = 6379,
-        redis_password: str = "",
-        session: str = "default",
-    ):
+    def __init__(self, persona: str):
+        """
+        All connection details come from environment variables:
+            REDIS_HOST, REDIS_PORT, REDIS_PASSWORD, REDIS_SESSION
+        """
         if not _redis_ok:
             raise ImportError(
                 "The 'redis' package is required for Redis sync. "
@@ -61,7 +65,13 @@ class DebateSync:
 
         self.persona  = persona.lower()          # "trump" or "biden"
         self.opponent = "biden" if self.persona == "trump" else "trump"
-        self.session  = session
+
+        # Read config from environment
+        redis_host = os.getenv("REDIS_HOST", "localhost")
+        redis_port = int(os.getenv("REDIS_PORT", "6379"))
+        redis_pwd  = os.getenv("REDIS_PASSWORD", "")
+        session    = os.getenv("REDIS_SESSION", "default")
+        self.session = session
 
         # Key names
         self._key_to_self = f"debate:{session}:to_{self.persona}"
@@ -69,11 +79,10 @@ class DebateSync:
         self._key_ready   = f"debate:{session}:ready"
 
         # Connect
-        pwd = redis_password or os.getenv("REDIS_PASSWORD", "")
         self._r = _redis_lib.Redis(
             host=redis_host,
             port=redis_port,
-            password=pwd or None,
+            password=redis_pwd or None,
             decode_responses=True,
             socket_connect_timeout=10,
             socket_timeout=None,        # BLPOP handles its own timeout
@@ -191,11 +200,9 @@ if __name__ == "__main__":
 
     p = argparse.ArgumentParser(description="Redis sync smoke-test")
     p.add_argument("--persona", required=True, choices=["trump", "biden"])
-    p.add_argument("--host",    default="localhost")
-    p.add_argument("--port",    type=int, default=6379)
     args = p.parse_args()
 
-    sync = DebateSync(args.persona, redis_host=args.host, redis_port=args.port)
+    sync = DebateSync(args.persona)
     ok = sync.wait_for_opponent(timeout=60)
     if not ok:
         sys.exit(1)
