@@ -270,6 +270,52 @@ def _run_qa_redis(model, tok, dev, bad_ids,
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Audience Q&A mode (standalone — no debate, no opponent)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _run_audience_mode(model, tok, dev, bad_ids,
+                       topic, max_new, temperature, top_p):
+    """
+    Audience mode — Trump answers live audience questions via microphone.
+    No debate exchanges, no opponent needed.  15 s of silence ends the session.
+    """
+    greeting = (
+        f"Good evening, this is {PERSONA.title()}. "
+        f"The topic tonight is {topic}. "
+        f"I'm ready to take your questions."
+    )
+    banner(PERSONA.upper(), greeting)
+    speak(greeting, PERSONA)
+
+    while True:
+        print(f"\n  [audience] [mic] Listening for question "
+              f"(15 s silence = end) …")
+        question = transcribe_from_microphone(timeout_seconds=15)
+
+        if not question:
+            farewell = "No more questions? Thank you all, it's been tremendous."
+            banner(PERSONA.upper(), farewell)
+            speak(farewell, PERSONA)
+            print(f"\n  [audience] Session ended — no further questions.")
+            break
+
+        banner("AUDIENCE QUESTION", question)
+
+        answer = generate_response(
+            model, tok, dev, PERSONA, question,
+            opponent_text="", own_prev_text="",
+            max_new=max_new, temperature=temperature, top_p=top_p,
+            bad_word_ids=bad_ids,
+        )
+        banner(f"{PERSONA.upper()} [answer]", answer)
+        speak(answer, PERSONA)
+
+        prompt_msg = "Next question, please."
+        banner(PERSONA.upper(), prompt_msg)
+        speak(prompt_msg, PERSONA)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Q&A phase — each terminal handles its own persona independently
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -341,10 +387,12 @@ def parse_args():
     )
     p.add_argument(
         "--mode", type=str, default="speak",
-        choices=["speak", "listen"],
+        choices=["speak", "listen", "audience"],
         help=(
-            "speak  — moderator intro + Trump speaks first each exchange\n"
-            "listen — waits for Biden, then responds  (default: speak)"
+            "speak    — moderator intro + Trump speaks first each exchange\n"
+            "listen   — waits for Biden, then responds\n"
+            "audience — standalone Q&A: listen to audience questions, Trump answers\n"
+            "(default: speak)"
         ),
     )
     p.add_argument(
@@ -393,8 +441,15 @@ def run_debate(args) -> None:
     model, tok, dev = load_model_and_tokenizer(model_dir, PERSONA)
     bad_ids = build_bad_word_ids(tok)
 
+    # ── Audience mode (standalone, no sync needed) ────────────────────
+    if args.mode == "audience":
+        _run_audience_mode(
+            model, tok, dev, bad_ids,
+            args.topic, args.max_new, args.temperature, args.top_p,
+        )
+
     # ── Redis sync path ───────────────────────────────────────────────
-    if args.sync == "redis":
+    elif args.sync == "redis":
         if DebateSync is None:
             print("  ERROR: 'redis' package not installed. "
                   "Run:  pip install redis")
