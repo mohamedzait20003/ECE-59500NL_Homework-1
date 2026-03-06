@@ -1,11 +1,9 @@
 import os
+import re
 import sys
 import tempfile
 import asyncio
 
-# ── Fix coqui-tts <-> transformers incompatibility ────────────────────────────
-# transformers >=4.40 removed `isin_mps_friendly`; XTTS-v2 still imports it.
-# Monkey-patch it back BEFORE any TTS module is imported.
 try:
     import torch as _pt
     import transformers.pytorch_utils as _tpu
@@ -17,8 +15,6 @@ try:
         _tpu.isin_mps_friendly = _isin_mps_friendly
 except Exception:
     pass
-
-# ── Optional imports ───────────────────────────────────────────────────────────
 
 try:
     import torch; _torch_ok = True
@@ -32,9 +28,6 @@ try:
 except ImportError:
     sf = sd = None; _sd_ok = False
 
-# ── Patch torchaudio to use soundfile instead of torchcodec ───────────────────
-# torchcodec requires FFmpeg DLLs on Windows.  We already have soundfile which
-# handles WAV natively — patch load/save so coqui-tts never triggers torchcodec.
 try:
     import torchaudio as _ta
     import soundfile as _sf2
@@ -113,19 +106,87 @@ def _load_xtts() -> bool:
         return False
 
 
+# ── XTTS text chunking (250-char limit per synthesis call) ─────────────────────
+
+_XTTS_CHAR_LIMIT = 250
+
+
+def _chunk_text(text: str, max_len: int = _XTTS_CHAR_LIMIT) -> list:
+    """Split *text* into pieces of at most *max_len* characters,
+    breaking at sentence / clause / word boundaries."""
+    text = text.strip()
+    if len(text) <= max_len:
+        return [text]
+    chunks: list[str] = []
+    while text:
+        if len(text) <= max_len:
+            chunks.append(text)
+            break
+        # sentence end (.!? followed by space)
+        best = -1
+        for m in re.finditer(r'[.!?]\s+', text[:max_len]):
+            best = m.end()
+        if best > 0:
+            chunks.append(text[:best].strip())
+            text = text[best:].strip()
+            continue
+        # semicolon
+        idx = text.rfind(';', 0, max_len)
+        if idx > 0:
+            chunks.append(text[:idx + 1].strip())
+            text = text[idx + 1:].strip()
+            continue
+        # comma
+        idx = text.rfind(',', 0, max_len)
+        if idx > 0:
+            chunks.append(text[:idx + 1].strip())
+            text = text[idx + 1:].strip()
+            continue
+        # word boundary
+        idx = text.rfind(' ', 0, max_len)
+        if idx > 0:
+            chunks.append(text[:idx].strip())
+            text = text[idx:].strip()
+            continue
+        # no boundary — force split
+        chunks.append(text[:max_len])
+        text = text[max_len:]
+    return [c for c in chunks if c]
+
+
 def _xtts_speak(text: str, ref_wav: str) -> None:
-    """Clone voice from ref_wav and play immediately."""
-    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-    out = tmp.name; tmp.close()
+    """Clone voice from ref_wav with automatic chunking for long text."""
+    chunks = _chunk_text(text)
+    wav_paths: list[str] = []
     try:
-        _xtts_model.tts_to_file(
-            text=text, speaker_wav=ref_wav,
-            language="en", file_path=out, split_sentences=True,
-        )
-        _play_wav(out)
+        for chunk in chunks:
+            tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+            out = tmp.name; tmp.close()
+            _xtts_model.tts_to_file(
+                text=chunk, speaker_wav=ref_wav,
+                language="en", file_path=out, split_sentences=True,
+            )
+            wav_paths.append(out)
+        # Gapless concatenated playback when possible
+        if len(wav_paths) == 1:
+            _play_wav(wav_paths[0])
+        elif _sd_ok:
+            import numpy as np
+            frames, rate = [], None
+            for p in wav_paths:
+                data, r = sf.read(p, dtype="float32")
+                if rate is None:
+                    rate = r
+                frames.append(data)
+            sd.play(np.concatenate(frames), rate)
+            sd.wait()
+        else:
+            for p in wav_paths:
+                _play_wav(p)
     finally:
-        try: os.remove(out)
-        except OSError: pass
+        for p in wav_paths:
+            try: os.remove(p)
+            except OSError: pass
 
 
 # ── edge-tts fallback ────────────────────────────────────────────────────────

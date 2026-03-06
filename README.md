@@ -239,17 +239,55 @@ python scripts/start_debate.py --persona both --topic "immigration" --turns 4
 
 #### Two-laptop setup
 
+**Option 1 — Redis sync (recommended, reliable):**
+
+Both laptops connect to the same Redis server. Text is exchanged directly over the network; TTS still plays locally on each machine for the audience.
+
+1. Start Redis on one of the laptops (or any reachable machine):
+   ```bash
+   # Docker (easiest):
+   docker run -d --name debate-redis -p 6379:6379 redis:latest
+
+   # Or install natively: https://redis.io/download
+   ```
+
+2. On the Trump laptop (`--mode speak` = moderator host):
+   ```bash
+   python scripts/start_trump.py --sync redis --mode speak \
+       --redis_host 192.168.1.50 --topic "immigration" --turns 4
+   ```
+
+3. On the Biden laptop (`--mode listen` = responder):
+   ```bash
+   python scripts/start_biden.py --sync redis --mode listen \
+       --redis_host 192.168.1.50 --topic "immigration" --turns 4
+   ```
+
+   Replace `192.168.1.50` with the IP of whichever machine runs Redis.
+
+**Redis CLI options:**
+
+| Argument | Default | Description |
+|---|---|---|
+| `--sync` | `audio` | `audio` = mic-to-speaker; `redis` = Redis text sync |
+| `--redis_host` | `localhost` | Redis server hostname / IP |
+| `--redis_port` | `6379` | Redis server port |
+| `--redis_password` | *(none)* | Redis AUTH password (if set) |
+| `--redis_session` | `default` | Session name for key isolation |
+
+**Option 2 — Audio sync (original, no extra dependencies):**
+
 On the Trump laptop:
 ```bash
-python scripts/start_debate.py --persona trump --topic "immigration"
+python scripts/start_trump.py --mode speak --topic "immigration"
 ```
 
 On the Biden laptop:
 ```bash
-python scripts/start_debate.py --persona biden --topic "immigration"
+python scripts/start_biden.py --mode listen --topic "immigration"
 ```
 
-Each machine generates its own persona's responses; opponent text is pasted from the other laptop.
+Each machine generates its own persona's responses; opponent text is captured via microphone from the other laptop's speaker.
 
 #### Text-only (no audio)
 

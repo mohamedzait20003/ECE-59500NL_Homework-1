@@ -35,6 +35,9 @@ nltk
 regex
 ftfy
 
+# Redis sync (two-laptop debate)
+redis
+
 # General
 numpy
 tqdm
