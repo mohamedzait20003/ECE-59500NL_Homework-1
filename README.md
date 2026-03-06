@@ -128,15 +128,25 @@ pip install torch torchvision torchaudio --extra-index-url https://download.pyto
 pip install -r requirements.txt
 ```
 
-#### 3. Configure API Keys (optional)
+#### 3. Configure Environment Variables
 
-Create `.env` in the project root if you want Azure STT:
+Create `.env` in the project root:
 
 ```env
+# Azure Speech-to-Text (optional — mic-based STT for audience Q&A)
 AZURE_SPEECH_KEY=your_azure_speech_key_here
 AZURE_SPEECH_REGION=your_azure_region_here
+
+# Redis sync (required for two-laptop debate — default values shown)
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_SESSION=default
 ```
 
+> **Redis** is used by default for synchronisation between the two laptops.
+> Point `REDIS_HOST` to whichever machine runs the Redis server.
+>
 > TTS works without any API keys — Coqui XTTS-v2 and edge-tts are both local / free.
 
 #### 4. Collect Training Data
@@ -239,9 +249,8 @@ python scripts/start_debate.py --persona both --topic "immigration" --turns 4
 
 #### Two-laptop setup
 
-**Option 1 — Redis sync (recommended, reliable):**
-
-Both laptops connect to the same Redis server. Text is exchanged directly over the network; TTS still plays locally on each machine for the audience.
+Both laptops connect to the same Redis instance. All Redis config is read from
+the `.env` file — no extra CLI flags needed.
 
 1. Start Redis on one of the laptops (or any reachable machine):
    ```bash
@@ -251,43 +260,29 @@ Both laptops connect to the same Redis server. Text is exchanged directly over t
    # Or install natively: https://redis.io/download
    ```
 
-2. On the Trump laptop (`--mode speak` = moderator host):
-   ```bash
-   python scripts/start_trump.py --sync redis --mode speak \
-       --redis_host 192.168.1.50 --topic "immigration" --turns 4
+2. Set `REDIS_HOST` in `.env` on **both** laptops to point at the Redis machine:
+   ```env
+   REDIS_HOST=192.168.1.50
    ```
 
-3. On the Biden laptop (`--mode listen` = responder):
+3. On the Trump laptop (`--mode speak` = moderator host):
    ```bash
-   python scripts/start_biden.py --sync redis --mode listen \
-       --redis_host 192.168.1.50 --topic "immigration" --turns 4
+   python scripts/start_trump.py --mode speak --topic "immigration" --turns 4
    ```
 
-   Replace `192.168.1.50` with the IP of whichever machine runs Redis.
+4. On the Biden laptop (`--mode listen` = responder):
+   ```bash
+   python scripts/start_biden.py --mode listen --topic "immigration" --turns 4
+   ```
 
-**Redis CLI options:**
+> To fall back to mic-to-speaker audio sync (no Redis), pass `--sync audio`.
 
-| Argument | Default | Description |
+| `.env` Variable | Default | Description |
 |---|---|---|
-| `--sync` | `audio` | `audio` = mic-to-speaker; `redis` = Redis text sync |
-| `--redis_host` | `localhost` | Redis server hostname / IP |
-| `--redis_port` | `6379` | Redis server port |
-| `--redis_password` | *(none)* | Redis AUTH password (if set) |
-| `--redis_session` | `default` | Session name for key isolation |
-
-**Option 2 — Audio sync (original, no extra dependencies):**
-
-On the Trump laptop:
-```bash
-python scripts/start_trump.py --mode speak --topic "immigration"
-```
-
-On the Biden laptop:
-```bash
-python scripts/start_biden.py --mode listen --topic "immigration"
-```
-
-Each machine generates its own persona's responses; opponent text is captured via microphone from the other laptop's speaker.
+| `REDIS_HOST` | `localhost` | Redis server hostname / IP |
+| `REDIS_PORT` | `6379` | Redis server port |
+| `REDIS_PASSWORD` | *(none)* | Redis AUTH password (if set) |
+| `REDIS_SESSION` | `default` | Session name for key isolation |
 
 #### Text-only (no audio)
 

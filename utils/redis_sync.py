@@ -55,7 +55,7 @@ class DebateSync:
     def __init__(self, persona: str):
         """
         All connection details come from environment variables:
-            REDIS_HOST, REDIS_PORT, REDIS_PASSWORD, REDIS_SESSION
+            REDIS_HOST, REDIS_PORT, REDIS_USERNAME, REDIS_PASSWORD, REDIS_SESSION
         """
         if not _redis_ok:
             raise ImportError(
@@ -69,6 +69,7 @@ class DebateSync:
         # Read config from environment
         redis_host = os.getenv("REDIS_HOST", "localhost")
         redis_port = int(os.getenv("REDIS_PORT", "6379"))
+        redis_user = os.getenv("REDIS_USERNAME", "")
         redis_pwd  = os.getenv("REDIS_PASSWORD", "")
         session    = os.getenv("REDIS_SESSION", "default")
         self.session = session
@@ -82,6 +83,7 @@ class DebateSync:
         self._r = _redis_lib.Redis(
             host=redis_host,
             port=redis_port,
+            username=redis_user or None,
             password=redis_pwd or None,
             decode_responses=True,
             socket_connect_timeout=10,
@@ -109,9 +111,8 @@ class DebateSync:
         Both sides call this. Each pushes 'ready', then blocks until the
         other side also pushes 'ready'.  Returns True when both are ready.
         """
-        # Clear stale readiness signals
-        self._r.delete(self._key_ready)
-        time.sleep(0.3)   # give the other side time to also clear
+        # Remove only our own stale entry (not the opponent's!)
+        self._r.lrem(self._key_ready, 0, self.persona)
 
         self._r.rpush(self._key_ready, self.persona)
         print(
